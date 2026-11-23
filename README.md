@@ -65,7 +65,7 @@ El mismo servidor se expone por HTTP (Streamable HTTP, sin estado) desde `src/wo
 npx wrangler login
 npx wrangler secret put ULTRAMSG_INSTANCE_ID
 npx wrangler secret put ULTRAMSG_TOKEN
-openssl rand -hex 32 | npx wrangler secret put MCP_AUTH_TOKEN   # guarda este valor
+openssl rand -hex 32 | npx wrangler secret put MCP_AUTH_TOKEN   # opcional, recomendado
 npm run deploy
 ```
 
@@ -77,7 +77,9 @@ Rutas del Worker (`https://mcp-ultramsg.<tu-subdominio>.workers.dev`):
 | `POST /mcp` | `Authorization: Bearer <MCP_AUTH_TOKEN>` | Claude Code y clientes que permiten headers |
 | `POST /mcp/<MCP_AUTH_TOKEN>` | Token en la ruta | Conector personalizado de claude.ai / Claude Desktop |
 
-Si `MCP_AUTH_TOKEN` no está configurado (o tiene menos de 32 caracteres) el Worker responde 500 y no envía nada.
+La autenticación es **opcional**: si `MCP_AUTH_TOKEN` no está configurado, `/mcp` queda **abierto** y
+cualquiera con la URL puede enviar mensajes desde tu número. Configúralo (≥ 32 caracteres) para exigir el token;
+si es más corto, el Worker responde 500. `GET /` indica en `auth` si está activa.
 
 **Claude Code:**
 

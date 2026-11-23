@@ -76,12 +76,25 @@ test('rechaza /mcp sin token o con token incorrecto', async () => {
   assert.equal(requests.length, 0);
 });
 
-test('se niega a funcionar si MCP_AUTH_TOKEN falta o es corto', async () => {
+test('se niega a funcionar si MCP_AUTH_TOKEN es demasiado corto', async () => {
   const res = await worker.fetch(
     new Request('https://worker.test/mcp', { method: 'POST' }),
     { ...env, MCP_AUTH_TOKEN: 'corto' },
   );
   assert.equal(res.status, 500);
+});
+
+test('sin MCP_AUTH_TOKEN el endpoint queda abierto', async () => {
+  const saved = env.MCP_AUTH_TOKEN;
+  delete env.MCP_AUTH_TOKEN;
+  try {
+    const client = await connect('/mcp');
+    const { tools } = await client.listTools();
+    assert.ok(tools.some((t) => t.name === 'send-message'));
+    await client.close();
+  } finally {
+    env.MCP_AUTH_TOKEN = saved;
+  }
 });
 
 test('ruta desconocida devuelve 404', async () => {

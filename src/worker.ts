@@ -1,10 +1,15 @@
 // Entrypoint para Cloudflare Workers: MCP sobre Streamable HTTP (sin estado).
 //
 // Rutas:
-//   GET  /                     → health check (sin auth)
-//   POST /mcp                  → requiere header `Authorization: Bearer <MCP_AUTH_TOKEN>`
+//   GET  /                     → health check
+//   POST /mcp                  → endpoint MCP
 //   POST /mcp/<MCP_AUTH_TOKEN> → mismo endpoint con el token en la ruta, para
 //                                clientes que no permiten headers (conector de claude.ai)
+//
+// Autenticación opcional:
+//   - Sin MCP_AUTH_TOKEN: /mcp queda ABIERTO (cualquiera con la URL puede enviar mensajes).
+//   - Con MCP_AUTH_TOKEN (≥ 32 caracteres): se exige `Authorization: Bearer <token>`
+//     o el token en la ruta.
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { loadConfig, type EnvSource } from './config.js';
 import { createMcpServer } from './server.js';
@@ -17,22 +22,22 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/' && request.method === 'GET') {
-      return json(200, { name: 'mcp-ultramsg', status: 'ok', endpoint: '/mcp' });
+      return json(200, { name: 'mcp-ultramsg', status: 'ok', endpoint: '/mcp', auth: Boolean(env.MCP_AUTH_TOKEN) });
     }
 
     const match = url.pathname.match(/^\/mcp(?:\/([^/]+))?\/?$/);
     if (!match) return json(404, { error: 'Not found' });
 
     const expected = typeof env.MCP_AUTH_TOKEN === 'string' ? env.MCP_AUTH_TOKEN.trim() : '';
-    if (expected.length < MIN_AUTH_TOKEN_LENGTH) {
-      // Nunca exponer el endpoint sin auth: enviaría WhatsApps desde tu número a cualquiera.
-      return json(500, { error: `MCP_AUTH_TOKEN no configurado (mínimo ${MIN_AUTH_TOKEN_LENGTH} caracteres)` });
-    }
-
-    const header = request.headers.get('Authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-    const provided = match[1] ? decodeURIComponent(match[1]) : header;
-    if (!provided || !(await safeEqual(provided, expected))) {
-      return json(401, { error: 'Unauthorized' }, { 'WWW-Authenticate': 'Bearer' });
+    if (expected) {
+      if (expected.length < MIN_AUTH_TOKEN_LENGTH) {
+        return json(500, { error: `MCP_AUTH_TOKEN demasiado corto (mínimo ${MIN_AUTH_TOKEN_LENGTH} caracteres)` });
+      }
+      const header = request.headers.get('Authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+      const provided = match[1] ? decodeURIComponent(match[1]) : header;
+      if (!provided || !(await safeEqual(provided, expected))) {
+        return json(401, { error: 'Unauthorized' }, { 'WWW-Authenticate': 'Bearer' });
+      }
     }
 
     let client: UltraMsgClient;

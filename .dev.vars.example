@@ -2,6 +2,6 @@
 ULTRAMSG_INSTANCE_ID=instance00000
 ULTRAMSG_TOKEN=your_token_here
 
-# Token que protege el endpoint /mcp (mínimo 32 caracteres).
+# Opcional: token que protege el endpoint /mcp (mínimo 32 caracteres). Sin él, /mcp queda abierto.
 # Genera uno con: openssl rand -hex 32
 MCP_AUTH_TOKEN=change_me_to_a_random_string_of_at_least_32_chars
