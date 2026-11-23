@@ -57,10 +57,46 @@ En `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
+## Despliegue en Cloudflare Workers (MCP remoto)
+
+El mismo servidor se expone por HTTP (Streamable HTTP, sin estado) desde `src/worker.ts`.
+
+```bash
+npx wrangler login
+npx wrangler secret put ULTRAMSG_INSTANCE_ID
+npx wrangler secret put ULTRAMSG_TOKEN
+openssl rand -hex 32 | npx wrangler secret put MCP_AUTH_TOKEN   # guarda este valor
+npm run deploy
+```
+
+Rutas del Worker (`https://mcp-ultramsg.<tu-subdominio>.workers.dev`):
+
+| Ruta | Auth | Uso |
+|---|---|---|
+| `GET /` | No | Health check |
+| `POST /mcp` | `Authorization: Bearer <MCP_AUTH_TOKEN>` | Claude Code y clientes que permiten headers |
+| `POST /mcp/<MCP_AUTH_TOKEN>` | Token en la ruta | Conector personalizado de claude.ai / Claude Desktop |
+
+Si `MCP_AUTH_TOKEN` no está configurado (o tiene menos de 32 caracteres) el Worker responde 500 y no envía nada.
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http ultramsg https://mcp-ultramsg.<tu-subdominio>.workers.dev/mcp \
+  --header "Authorization: Bearer <MCP_AUTH_TOKEN>"
+```
+
+**claude.ai / Claude Desktop:** Settings → Connectors → *Add custom connector* → URL
+`https://mcp-ultramsg.<tu-subdominio>.workers.dev/mcp/<MCP_AUTH_TOKEN>`.
+Trata esa URL como una contraseña: quien la tenga puede enviar mensajes desde tu número.
+Para revocarla, cambia el secret (`wrangler secret put MCP_AUTH_TOKEN`).
+
+Desarrollo local del Worker: `cp .dev.vars.example .dev.vars` y `npm run dev:worker`.
+
 ## Pruebas
 
 ```bash
-npm test          # e2e: cliente MCP real + UltraMsg simulado en localhost (no envía mensajes reales)
+npm test          # e2e stdio + Worker: cliente MCP real + UltraMsg simulado (no envía mensajes reales)
 npm run inspect   # abre MCP Inspector para invocar la tool manualmente
 ```
 
@@ -76,13 +112,16 @@ npm run inspect   # abre MCP Inspector para invocar la tool manualmente
 
 ```
 src/
-├── index.ts             # arranque del servidor MCP (stdio)
-├── config.ts            # carga y validación de variables de entorno
+├── index.ts             # arranque del servidor MCP (stdio, local)
+├── worker.ts            # entrypoint Cloudflare Workers (HTTP, remoto)
+├── server.ts            # crea el McpServer con sus tools (compartido)
+├── config.ts            # validación de variables de entorno
 ├── ultramsg.client.ts   # cliente HTTP de UltraMsg
 └── tools/
     └── send-message.ts  # tool send-message
 test/
-└── e2e.test.mjs
+├── e2e.test.mjs
+└── worker.test.mjs
 ```
 
 > UltraMsg es una API **no oficial** de WhatsApp. Un volumen alto de mensajes o mensajes no solicitados pueden provocar el bloqueo del número.

@@ -1,17 +1,22 @@
 #!/usr/bin/env node
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { loadConfig } from './config.js';
-import { registerSendMessage } from './tools/send-message.js';
+import { createMcpServer } from './server.js';
 import { UltraMsgClient } from './ultramsg.client.js';
+
+// Claude lanza el servidor desde cualquier directorio, así que el .env se
+// busca en la raíz del proyecto y no en el cwd.
+const envPath = resolve(dirname(fileURLToPath(import.meta.url)), '..', '.env');
+if (existsSync(envPath)) {
+  process.loadEnvFile(envPath);
+}
 
 // En transporte stdio, stdout es el canal del protocolo: todo log va a stderr.
 async function main(): Promise<void> {
-  const client = new UltraMsgClient(loadConfig());
-
-  const server = new McpServer({ name: 'mcp-ultramsg', version: '1.0.0' });
-  registerSendMessage(server, client);
-
+  const server = createMcpServer(new UltraMsgClient(loadConfig(process.env)));
   await server.connect(new StdioServerTransport());
   console.error('mcp-ultramsg listo (stdio)');
 }

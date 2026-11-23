@@ -1,0 +1,13 @@
+name = "mcp-ultramsg"
+main = "src/worker.ts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (no van aquí): configúralos con
+#   npx wrangler secret put ULTRAMSG_INSTANCE_ID
+#   npx wrangler secret put ULTRAMSG_TOKEN
+#   npx wrangler secret put MCP_AUTH_TOKEN
+# Para `wrangler dev` local, ponlos en .dev.vars (ver .dev.vars.example).
+
+[observability]
+enabled = true

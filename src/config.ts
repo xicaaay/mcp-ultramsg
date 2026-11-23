@@ -1,13 +1,5 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-// Claude lanza el servidor desde cualquier directorio, así que el .env se
-// busca en la raíz del proyecto y no en el cwd.
-const envPath = resolve(dirname(fileURLToPath(import.meta.url)), '..', '.env');
-if (existsSync(envPath)) {
-  process.loadEnvFile(envPath);
-}
+// Sin dependencias de Node: se usa tanto en el servidor stdio (process.env)
+// como en el Worker de Cloudflare (bindings `env`).
 
 export interface UltraMsgConfig {
   instanceId: string;
@@ -15,9 +7,11 @@ export interface UltraMsgConfig {
   baseUrl: string;
 }
 
-export function loadConfig(): UltraMsgConfig {
-  const instanceId = process.env.ULTRAMSG_INSTANCE_ID?.trim();
-  const token = process.env.ULTRAMSG_TOKEN?.trim();
+export type EnvSource = Record<string, unknown>;
+
+export function loadConfig(env: EnvSource): UltraMsgConfig {
+  const instanceId = str(env.ULTRAMSG_INSTANCE_ID);
+  const token = str(env.ULTRAMSG_TOKEN);
 
   const missing = [
     !instanceId && 'ULTRAMSG_INSTANCE_ID',
@@ -25,13 +19,17 @@ export function loadConfig(): UltraMsgConfig {
   ].filter(Boolean);
   if (missing.length > 0) {
     throw new Error(
-      `Faltan variables de entorno: ${missing.join(', ')}. Configúralas en .env o en la config del servidor MCP.`,
+      `Faltan variables de entorno: ${missing.join(', ')}. Configúralas en .env, en la config del servidor MCP o como secrets del Worker.`,
     );
   }
 
   return {
     instanceId: instanceId!,
     token: token!,
-    baseUrl: (process.env.ULTRAMSG_BASE_URL?.trim() || 'https://api.ultramsg.com').replace(/\/+$/, ''),
+    baseUrl: (str(env.ULTRAMSG_BASE_URL) || 'https://api.ultramsg.com').replace(/\/+$/, ''),
   };
+}
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' ? v.trim() || undefined : undefined;
 }
