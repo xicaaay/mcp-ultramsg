@@ -4,9 +4,35 @@ Servidor [MCP](https://modelcontextprotocol.io) que conecta Claude con [UltraMsg
 
 ## Herramientas
 
-| Tool | Descripción | Parámetros |
+| Tool | Tipo | Descripción |
 |---|---|---|
-| `send-message` | Envía un mensaje de texto por WhatsApp | `to`: número con código de país (`+5215512345678`) o chat id (`...@c.us` / `...@g.us`)<br>`body`: texto del mensaje |
+| `send-message` | escritura | Envía un mensaje de texto. `to`: número con código de país (`+50212345678`) o chat id (`...@c.us` / `...@g.us`); `body`: texto |
+| `list-groups` | lectura | Lista los grupos (id `...@g.us`, nombre, nº de participantes, última actividad). `query` opcional filtra por nombre |
+| `get-group` | lectura | Participantes de un grupo (teléfono, admin), dueño y descripción. `groupId` |
+| `get-chat-messages` | lectura | Últimos mensajes de un chat o grupo con autor, hora local, tipo y texto. `chatId`, `limit` (1-1000), `date` opcional |
+| `check-group-status` | lectura | Separa a los participantes de un grupo en `reported` / `pending` según si enviaron mensaje en un día y rango de horas |
+
+### `check-group-status`
+
+| Parámetro | Por defecto | Descripción |
+|---|---|---|
+| `groupId` | — | Id del grupo (de `list-groups`) |
+| `date` | hoy | `YYYY-MM-DD` |
+| `timezone` | `America/Guatemala` | Zona horaria IANA |
+| `startTime` / `endTime` | `00:00` / `23:59` | Rango de horas local que cuenta |
+| `keyword` | — | Si se indica, solo cuentan mensajes que la contengan (p. ej. `#status`) |
+| `countMedia` | `true` | Sin keyword: si audios, imágenes o stickers cuentan como status |
+| `exclude` | `[]` | Números a ignorar (p. ej. admins). Tu propio número se excluye siempre |
+
+Devuelve `pending` (con el `chatId` listo para `send-message`), `reported` (hora y vista previa del primer mensaje),
+`unmatchedAuthors` (autores que no coinciden con participantes, p. ej. ids `@lid`) y `warnings` (p. ej. si los últimos
+1000 mensajes no alcanzan a cubrir la ventana).
+
+### Ejemplo de tarea programada para Claude
+
+> Todos los días de lunes a viernes a las 10:00: revisa el grupo "Desarrollo Reducido" con `check-group-status`
+> (ventana 00:00–10:00, keyword `#status`, excluye +502XXXXXXXX). A cada persona en `pending` envíale por privado:
+> "Hola 👋, recuerda enviar tu status del día en el grupo Desarrollo Reducido." Al final dame un resumen.
 
 ## Requisitos
 
@@ -118,12 +144,17 @@ src/
 ├── worker.ts            # entrypoint Cloudflare Workers (HTTP, remoto)
 ├── server.ts            # crea el McpServer con sus tools (compartido)
 ├── config.ts            # validación de variables de entorno
+├── util.ts              # validaciones, zonas horarias y helpers compartidos
 ├── ultramsg.client.ts   # cliente HTTP de UltraMsg
 └── tools/
-    └── send-message.ts  # tool send-message
+    ├── send-message.ts        # send-message
+    ├── groups.ts              # list-groups, get-group
+    ├── messages.ts            # get-chat-messages
+    └── check-group-status.ts  # check-group-status
 test/
-├── e2e.test.mjs
-└── worker.test.mjs
+├── e2e.test.mjs       # stdio
+├── tools.test.mjs     # tools de lectura
+└── worker.test.mjs    # Worker y autenticación
 ```
 
 > UltraMsg es una API **no oficial** de WhatsApp. Un volumen alto de mensajes o mensajes no solicitados pueden provocar el bloqueo del número.
